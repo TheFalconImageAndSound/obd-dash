@@ -1,0 +1,11 @@
+{
+  "name": "obd-dash",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Web Bluetooth OBD-II scanner and digital dashboard for the Veepeak OBDCheck BLE+ (and other BLE ELM327 adapters).",
+  "type": "module",
+  "scripts": {
+    "start": "node tools/serve.mjs",
+    "test": "node --test tests/*.test.mjs"
+  }
+}
