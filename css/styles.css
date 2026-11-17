@@ -7,6 +7,7 @@
   --muted: #8b97a6;
   --accent: #39c6ff;
   --accent-ink: #001520;
+  --brand: #f9f5f2; /* falcon logo off-white */
   --ok: #34d17a;
   --warn: #ffb224;
   --crit: #ff4d4f;
@@ -69,13 +70,11 @@ a { color: var(--accent); }
   background: radial-gradient(1200px 600px at 50% -10%, #0f2733 0%, transparent 60%), var(--bg);
 }
 .connect-card { width: 100%; max-width: 460px; display: grid; gap: 18px; }
-.logo { display: flex; align-items: center; gap: 12px; }
-.logo svg { width: 52px; height: 52px; }
-.logo-track { fill: none; stroke: var(--line); stroke-width: 6; stroke-linecap: round; }
-.logo-fill { fill: none; stroke: var(--accent); stroke-width: 6; stroke-linecap: round; }
-.logo-needle { stroke: var(--text); stroke-width: 4; stroke-linecap: round; }
-.logo-hub { fill: var(--text); }
-.logo h1 { font-size: 30px; letter-spacing: -.02em; }
+.logo { display: flex; align-items: center; gap: 14px; }
+.logo img { width: 72px; height: 72px; flex: none; }
+.logo h1 { font-size: 30px; letter-spacing: -.02em; color: var(--brand); }
+.byline { margin-top: 2px; font-size: 12px; font-weight: 650; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.brand-mark { width: 30px; height: 30px; flex: none; }
 .lede { color: var(--muted); font-size: 16px; }
 .steps { margin: 0; padding: 14px 16px 14px 36px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); display: grid; gap: 8px; color: #c8d1db; }
 .steps b { color: var(--text); }

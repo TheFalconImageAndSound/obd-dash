@@ -1,4 +1,7 @@
+<img src="icons/icon-192.png" alt="" width="96" height="96">
+
 # OBD Dash
+*by Falcon Image and Sound*
 
 A free web app for the **Veepeak OBDCheck BLE+** (and other Bluetooth LE ELM327 adapters):
 

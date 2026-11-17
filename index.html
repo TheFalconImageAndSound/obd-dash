@@ -11,8 +11,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="icon" href="icons/favicon-64.png" type="image/png" sizes="64x64">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -39,8 +39,11 @@
   <section id="screen-connect" class="screen connect">
     <div class="connect-card">
       <div class="logo">
-        <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M12 46a22 22 0 1 1 40 0" class="logo-track" /><path d="M12 46a22 22 0 0 1 30-26" class="logo-fill" /><path d="M32 40l9-13" class="logo-needle" /><circle cx="32" cy="40" r="3.5" class="logo-hub" /></svg>
-        <h1>OBD Dash</h1>
+        <img src="icons/falcon-mark.png" alt="Falcon Image and Sound logo" width="72" height="72">
+        <div>
+          <h1>OBD Dash</h1>
+          <p class="byline">by Falcon Image and Sound</p>
+        </div>
       </div>
       <p class="lede">Read &amp; clear check-engine codes and watch live engine data with your Veepeak OBDCheck BLE+.</p>
 
@@ -71,6 +74,7 @@
   <section id="screen-app" class="screen app" hidden>
     <header class="appbar">
       <div class="conn">
+        <img class="brand-mark" src="icons/falcon-mark.png" alt="" width="30" height="30">
         <span id="connDot" class="dot" aria-hidden="true"></span>
         <div class="conn-text">
           <span id="connName" class="conn-name">Adapter</span>

@@ -1,7 +1,7 @@
 {
   "name": "OBD Dash",
   "short_name": "OBD Dash",
-  "description": "Read and clear check-engine codes and see a live digital dashboard with a Bluetooth OBD-II adapter.",
+  "description": "Read and clear check-engine codes and see a live digital dashboard with a Bluetooth OBD-II adapter. By Falcon Image and Sound.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
@@ -12,7 +12,6 @@
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
-    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }
