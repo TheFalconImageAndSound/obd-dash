@@ -15,6 +15,7 @@ import {
   decimals,
 } from './pids.js';
 import { describeDtc } from './dtc.js';
+import { GpsSpeed } from './gps.js';
 
 const $ = (id) => document.getElementById(id);
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -52,6 +53,7 @@ function loadSettings() {
     tiles: DEFAULT_TILES,
     keepAwake: true,
     verbose: false,
+    speedSource: 'obd', // 'obd' (car's speed sensor) or 'gps' (phone)
   };
   try {
     return { ...defaults, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') };
@@ -85,8 +87,18 @@ const state = {
   info: {},
 };
 
+const gps = new GpsSpeed({ onUpdate: onGpsUpdate });
+
+const useGps = () => settings.speedSource === 'gps';
+
+/** Speed in km/h from whichever source is selected. */
+function speedNow() {
+  return useGps() ? gps.speed : state.values.speed ?? null;
+}
+
 function has(key) {
   const sig = SIGNAL_BY_KEY[key];
+  if (key === 'speed' && useGps()) return state.connected;
   if (!sig || state.dead.has(key) || !state.connected) return false;
   if (sig.source === 'atrv') return true;
   if (sig.needs) return !!sig.needs(has);
@@ -94,8 +106,9 @@ function has(key) {
 }
 
 function valueOf(key) {
+  if (key === 'speed') return speedNow();
   const sig = SIGNAL_BY_KEY[key];
-  if (sig.derive) return sig.derive(state.values);
+  if (sig.derive) return sig.derive({ ...state.values, speed: speedNow() });
   return state.values[key] ?? null;
 }
 
@@ -116,6 +129,7 @@ function pollKeys() {
   const want = new Set();
   const add = (k) => {
     const sig = SIGNAL_BY_KEY[k];
+    if (k === 'speed' && useGps()) return; // phone supplies speed; don't spend car bandwidth on it
     if (sig.needs) (sig.needs(has) || []).forEach(add);
     else if (has(k)) want.add(k);
   };
@@ -287,6 +301,7 @@ function enterApp() {
   updateUnitsUi();
   setTab('dash');
   updateWakeLock();
+  updateGps();
   if (!state.vehicle) toast('Connected to the adapter, but the car isn’t answering yet.', 'error');
 }
 
@@ -326,6 +341,7 @@ function teardown(message) {
   recorder.stop(true);
   Object.assign(state, { connected: false, vehicle: false, busy: false, elm: null, transport: null });
   updateWakeLock();
+  updateGps();
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
   $('screen-app').hidden = true;
   $('screen-connect').hidden = false;
@@ -465,7 +481,7 @@ function frame(ts) {
   const dt = hero.last ? Math.min(0.1, (ts - hero.last) / 1000) : 0.016;
   hero.last = ts;
   const rpmT = state.values.rpm;
-  const spdT = state.values.speed;
+  const spdT = speedNow();
   hero.rpm += ((rpmT ?? 0) - hero.rpm) * Math.min(1, dt * 9);
   hero.speed += ((spdT ?? 0) - hero.speed) * Math.min(1, dt * 7);
 
@@ -482,6 +498,11 @@ function frame(ts) {
   const spd = toDisplay(SIGNAL_BY_KEY.speed, hero.speed, settings.units);
   const spdText = spdT == null ? '--' : String(Math.round(spd));
   if (spdText !== hero.drawn.speed) $('gSpeed').textContent = hero.drawn.speed = spdText;
+
+  const unit = settings.units === 'us' ? 'MPH' : 'KM/H';
+  let unitText = unit;
+  if (useGps()) unitText = spdT != null ? `${unit} · GPS` : gps.status === 'ok' ? 'GPS · NO SIGNAL' : 'WAITING FOR GPS';
+  if (unitText !== hero.drawn.unit) $('gSpeedUnit').textContent = hero.drawn.unit = unitText;
 
   const cls = rpmT == null ? '' : hero.rpm >= settings.redline ? 'over' : hero.rpm >= settings.redline - 600 ? 'near' : '';
   if (cls !== hero.cls) {
@@ -557,6 +578,7 @@ function updateUnitsUi() {
   $('btnUnits').textContent = settings.units === 'us' ? 'US units' : 'Metric';
   $('gSpeedUnit').textContent = settings.units === 'us' ? 'MPH' : 'KM/H';
   hero.drawn.speed = null;
+  hero.drawn.unit = null;
   for (const b of document.querySelectorAll('[data-units]')) b.setAttribute('aria-checked', String(b.dataset.units === settings.units));
 }
 
@@ -582,7 +604,41 @@ function initSettingsUi() {
   });
   for (const b of document.querySelectorAll('[data-units]')) b.addEventListener('click', () => setUnits(b.dataset.units));
   $('btnUnits').addEventListener('click', () => setUnits(settings.units === 'us' ? 'metric' : 'us'));
+  for (const b of document.querySelectorAll('[data-speedsrc]')) b.addEventListener('click', () => setSpeedSource(b.dataset.speedsrc));
+  $('btnGps').addEventListener('click', () => setSpeedSource(useGps() ? 'obd' : 'gps'));
   updateUnitsUi();
+  updateSpeedUi();
+}
+
+// =============================================================== GPS speedometer
+
+function updateGps() {
+  if (useGps() && state.connected && !document.hidden) gps.start();
+  else gps.stop();
+  updateSpeedUi();
+}
+
+function onGpsUpdate(g) {
+  if (g.status === 'denied' || g.status === 'unsupported') {
+    toast(g.message, 'error');
+    setSpeedSource('obd', { quiet: true });
+    return;
+  }
+  updateTiles(); // economy uses speed too
+}
+
+function setSpeedSource(source, { quiet = false } = {}) {
+  if (settings.speedSource === source) return;
+  settings.speedSource = source;
+  saveSettings();
+  updateGps();
+  if (!quiet) toast(source === 'gps' ? 'Speed now comes from the phone’s GPS.' : 'Speed now comes from the car.');
+}
+
+function updateSpeedUi() {
+  $('btnGps').setAttribute('aria-pressed', String(useGps()));
+  for (const b of document.querySelectorAll('[data-speedsrc]')) b.setAttribute('aria-checked', String(b.dataset.speedsrc === settings.speedSource));
+  hero.drawn.unit = null;
 }
 
 // =============================================================== customize tiles
@@ -1000,7 +1056,7 @@ const recorder = {
       toast('Nothing to record yet — the car isn’t sending live data.', 'error');
       return;
     }
-    this.rec = { keys, units: settings.units, rows: [], started: Date.now() };
+    this.rec = { keys, units: settings.units, gps: useGps(), rows: [], started: Date.now() };
     $('btnRecord').classList.add('recording');
     const tick = () => {
       const s = Math.round((Date.now() - this.rec.started) / 1000);
@@ -1041,7 +1097,8 @@ function downloadCsv(r) {
     ...r.keys.map((k) => {
       const sig = SIGNAL_BY_KEY[k];
       const unit = unitLabel(sig, r.units);
-      return unit ? `${sig.label} (${unit})` : sig.label;
+      const label = k === 'speed' && r.gps ? 'GPS speed' : sig.label;
+      return unit ? `${label} (${unit})` : label;
     }),
   ];
   const csv = [header.map(esc).join(','), ...r.rows.map((row) => row.join(','))].join('\n');
@@ -1155,6 +1212,7 @@ function wireEvents() {
   document.addEventListener('visibilitychange', () => {
     updatePolling();
     updateWakeLock();
+    updateGps();
   });
 }
 

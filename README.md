@@ -10,6 +10,7 @@ A free web app for the **Veepeak OBDCheck BLE+** (and other Bluetooth LE ELM327 
 - **Freeze frame** — engine conditions when the code was set
 - **Emissions readiness** — see if the car is ready for a smog/inspection test
 - **Digital dashboard** — tachometer with shift light, speed, and tiles for coolant, battery, boost, fuel trims, oil temp, economy and more (only what your car supports)
+- **GPS speed** — one tap switches the speedometer to the phone’s GPS (handy if your car doesn’t report speed, and it frees the adapter to update RPM faster)
 - **Record** live data to a CSV file, **US / metric** units, keeps the screen awake
 - **Demo mode** with a simulated car, and a raw **console** for ELM327 commands
 
@@ -80,6 +81,7 @@ Notes for iPhone:
 - Don’t use Safari’s *Add to Home Screen* for this app — home-screen web apps run on Safari’s engine, which has no Bluetooth.
 - iPhone can’t make a web page full-screen, so that button is hidden. Turn the phone sideways for the car-mount layout.
 - If the screen dims while driving, set **Settings → Display & Brightness → Auto-Lock** to a longer time.
+- For **GPS speed**, allow location when asked. If you said no, turn it on in **Settings → Bluefy → Location → While Using the App**.
 
 ### Windows / Mac / Chromebook
 Chrome or Edge works if the computer has Bluetooth LE. Handy for testing at the desk.
@@ -110,7 +112,8 @@ Generic OBD-II only covers the engine/emissions computer (and often the transmis
 | VEEPEAK isn’t in the list | Check the adapter’s light is on; ignition ON; tap *Show all Bluetooth devices*; close other OBD apps (an adapter can only talk to one app at a time); unplug it for 10 seconds. |
 | “Car isn’t answering” banner | Ignition must be ON. Tap **Retry**. Some cars need the engine running. |
 | A gauge tile disappears | Your car doesn’t report that value — normal. Pick others under **Gauges**. |
-| Updates feel slow | Fewer tiles = faster refresh. RPM/speed update most often; temperatures rotate in slower. |
+| Updates feel slow | Fewer tiles = faster refresh. RPM/speed update most often; temperatures rotate in slower. Turning on **GPS speed** also speeds up RPM. |
+| GPS speed shows “Waiting for GPS” | Give it a few seconds outdoors with a clear sky view. Location must be allowed for the browser. GPS speed is shown only while the phone is getting fresh fixes. |
 | Something odd | **Console** tab shows every command and reply. Turn on *Log dashboard traffic* under Vehicle → Settings for full detail. |
 
 ---
@@ -131,6 +134,7 @@ npm test       # protocol + parser tests against the simulated adapter
 | `js/pids.js` | Live values, unit conversions, warning thresholds |
 | `js/dtc.js`, `js/dtc-codes.js` | Trouble-code decoding, descriptions, readiness monitors |
 | `js/sim.js` | Simulated adapter + car for demo mode and tests |
+| `js/gps.js` | Phone GPS speed (uses the phone’s speed, or works it out from position changes) |
 | `sw.js`, `manifest.webmanifest`, `icons/` | Installable app + offline support |
 | `tools/deploy.ps1` | One-command GitHub Pages deploy |
 
