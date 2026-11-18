@@ -228,6 +228,7 @@ function bleErrorText(err) {
   if (name === 'NotAllowedError') {
     return 'Bluetooth permission is blocked. Allow “Nearby devices” (Android) or Bluetooth for your browser, then try again.';
   }
+  if (msg.includes('Bluetooth layout')) return msg;
   if (name === 'NetworkError' || /gatt|connection/i.test(msg)) {
     return 'Couldn’t open a connection to the adapter. Close any other OBD app that might be using it, unplug the adapter for 10 seconds, and try again.';
   }
@@ -239,9 +240,10 @@ async function connect(kind, opts = {}) {
   state.connecting = true;
   showConnectError(null);
   const transport = kind === 'demo' ? new SimTransport() : new BleTransport();
+  transport.onLog = (text) => logLine('info', text);
   setConnectStatus(kind === 'demo' ? 'Starting the demo car…' : 'Choose your adapter from the list…');
   try {
-    await transport.connect(opts);
+    await transport.connect({ ...opts, onStatus: (msg) => setConnectStatus(msg) });
   } catch (err) {
     state.connecting = false;
     setConnectStatus(null);
@@ -937,6 +939,7 @@ function renderVehicleInfo() {
   const u = settings.units;
   dl.append(kv('Adapter', state.transport.name));
   dl.append(kv('Adapter chip', [elm.info.version, elm.info.device].filter(Boolean).join(' · ') || '—'));
+  if (state.transport.channel) dl.append(kv('Bluetooth channel', state.transport.channel, true));
   const v = state.info.voltage ?? state.values.battery;
   dl.append(kv('Battery', v != null ? `${v.toFixed(1)} V` : '—'));
   dl.append(kv('Car connection', state.vehicle ? 'Connected' : 'Not responding'));

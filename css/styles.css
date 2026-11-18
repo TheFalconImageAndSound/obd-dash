@@ -81,7 +81,7 @@ a { color: var(--accent); }
 .connect-actions { display: grid; gap: 10px; }
 .connect-status { display: flex; align-items: center; gap: 10px; color: var(--muted); }
 .note { padding: 12px 14px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); color: #c8d1db; font-size: 14px; }
-.note.error { border-color: color-mix(in srgb, var(--crit) 50%, transparent); background: color-mix(in srgb, var(--crit) 8%, var(--panel)); }
+.note.error { white-space: pre-line; overflow-wrap: anywhere; border-color: color-mix(in srgb, var(--crit) 50%, transparent); background: color-mix(in srgb, var(--crit) 8%, var(--panel)); }
 .note b { color: var(--text); }
 .note-actions { margin-top: 10px; }
 #btnInstall { justify-self: center; }
