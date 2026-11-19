@@ -10,7 +10,8 @@ A free web app for the **Veepeak OBDCheck BLE+** (and other Bluetooth LE ELM327 
 - **Freeze frame** — engine conditions when the code was set
 - **Emissions readiness** — see if the car is ready for a smog/inspection test
 - **Digital dashboard** — tachometer with shift light, speed, and tiles for coolant, battery, boost, fuel trims, oil temp, economy and more (only what your car supports)
-- **Race Dash** — a full-screen race-car dashboard that turns on automatically on iPad/tablets: shift-light LEDs (green → amber → red → flashing blue at redline), a segmented RPM bar, huge speed + RPM, temperature and power columns, a bottom data strip with peak RPM, top speed and a **0–60 timer**, and warning lights. Tap **Focus** to hide the app bar. Pick Auto / Standard / Race under Vehicle → Settings.
+- **Race Dash** — a full-screen race-car dashboard that turns on automatically on iPad/tablets: shift-light LEDs (green → amber → red → flashing blue at redline), a segmented RPM bar, huge speed + RPM, temperature and power columns, a bottom data strip with peak RPM, top speed and a **0–60 timer**, and warning lights. Tap **Focus** to hide the app bar. Pick Auto / Standard / Race / Muscle under Vehicle → Settings.
+- **Muscle Dash** — a restomod / stock-car cluster on a carbon-fibre panel: big chrome-bezel analog tach and speedometer with sprung needles (and a start-up needle sweep), a peak-RPM tell-tale needle, a row of six analog gauges (water, oil, volts, fuel, boost…), a SHIFT lamp, jewel warning lamps, a trip meter and the 0–60 timer.
 - **GPS speed** — one tap switches the speedometer to the phone’s GPS (handy if your car doesn’t report speed, and it frees the adapter to update RPM faster)
 - **Record** live data to a CSV file, **US / metric** units, keeps the screen awake
 - **Demo mode** with a simulated car, and a raw **console** for ELM327 commands
@@ -135,7 +136,9 @@ npm test       # protocol + parser tests against the simulated adapter
 | `js/pids.js` | Live values, unit conversions, warning thresholds |
 | `js/dtc.js`, `js/dtc-codes.js` | Trouble-code decoding, descriptions, readiness monitors |
 | `js/sim.js` | Simulated adapter + car for demo mode and tests |
-| `js/race.js` | The Race Dash layout (shift lights, RPM bar, data slots, peaks, 0–60 timer) |
+| `js/race.js` | The Race Dash layout (shift lights, RPM bar, data slots, peaks) |
+| `js/muscle.js` | The Muscle Dash (analog gauges with needle physics, carbon-fibre texture, shift lamp, trip meter) |
+| `js/launch.js` | 0–60 / 0–100 timer shared by both special dashes |
 | `js/gps.js` | Phone GPS speed (uses the phone’s speed, or works it out from position changes) |
 | `sw.js`, `manifest.webmanifest`, `icons/` | Installable app + offline support |
 | `tools/deploy.ps1` | One-command GitHub Pages deploy |

@@ -17,6 +17,7 @@ import {
 import { describeDtc } from './dtc.js';
 import { GpsSpeed } from './gps.js';
 import { RaceDash } from './race.js';
+import { MuscleDash } from './muscle.js';
 
 const $ = (id) => document.getElementById(id);
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -108,7 +109,17 @@ function speedUnitText(speed) {
 // iPad (iPadOS reports itself as a Mac with a touchscreen) or any tablet-sized touch screen.
 const IS_IPAD = /iPad/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const isTablet = () => IS_IPAD || (navigator.maxTouchPoints > 0 && Math.min(screen.width, screen.height) >= 700);
-const raceOn = () => settings.dashStyle === 'race' || (settings.dashStyle === 'auto' && isTablet());
+/** Which dashboard to show: 'standard', 'race' or 'muscle'. Auto = race on tablets, standard on phones. */
+function dashStyle() {
+  const s = settings.dashStyle;
+  if (s === 'race' || s === 'muscle' || s === 'standard') return s;
+  return isTablet() ? 'race' : 'standard';
+}
+/** The full-screen dash object in use, or null for the standard dash. */
+function activeDash() {
+  const s = dashStyle();
+  return s === 'race' ? raceDash : s === 'muscle' ? muscleDash : null;
+}
 
 function has(key) {
   const sig = SIGNAL_BY_KEY[key];
@@ -147,7 +158,8 @@ function pollKeys() {
     if (sig.needs) (sig.needs(has) || []).forEach(add);
     else if (has(k)) want.add(k);
   };
-  const shown = raceOn() && raceDash.built ? raceDash.pollKeys() : activeTiles();
+  const special = activeDash();
+  const shown = special?.built ? special.pollKeys() : activeTiles();
   [...HERO_KEYS, ...shown].forEach(add);
   // RPM and speed are "hot": read between every other value so the tach and shift lights stay lively.
   const hot = HERO_KEYS.filter((k) => want.has(k));
@@ -507,8 +519,9 @@ function frame(ts) {
   if (state.tab !== 'dash' || !state.connected) return;
   const dt = hero.last ? Math.min(0.1, (ts - hero.last) / 1000) : 0.016;
   hero.last = ts;
-  if (raceOn()) {
-    raceDash.frame(dt);
+  const special = activeDash();
+  if (special) {
+    special.frame(dt);
     return;
   }
   const rpmT = state.values.rpm;
@@ -568,7 +581,7 @@ function renderTiles() {
   if (!keys.length && state.vehicle) {
     wrap.append(el('p', { class: 'muted small', text: 'No gauges selected — tap “Gauges” to add some.' }));
   }
-  if (raceOn()) raceDash.refreshSlots();
+  activeDash()?.refreshSlots();
   updateTiles();
 }
 
@@ -590,13 +603,13 @@ function updateTiles() {
     t.tile.classList.toggle('crit', level === 'crit');
     t.tile.classList.toggle('na', v == null);
   }
-  if (raceOn()) raceDash.update();
+  activeDash()?.update();
   updateHeader();
 }
 
-// =============================================================== race dash
+// =============================================================== race & muscle dashes
 
-const raceDash = new RaceDash($('raceDash'), {
+const dashCtx = {
   settings,
   has,
   valueOf,
@@ -614,46 +627,56 @@ const raceDash = new RaceDash($('raceDash'), {
     if (action === 'gps') setSpeedSource(useGps() ? 'obd' : 'gps');
     else if (action === 'record') recorder.toggle();
     else if (action === 'peaks') {
-      raceDash.resetPeaks();
-      toast('Peaks and 0–60 times reset.');
-    } else if (action === 'focus') setFocus(!document.body.classList.contains('race-focus'));
-    else if (action === 'standard') setDashStyle('standard');
-    syncRaceControls();
+      activeDash()?.resetPeaks();
+      toast('Peaks, trip and 0–60 times reset.');
+    } else if (action === 'focus') setFocus(!document.body.classList.contains('dash-focus'));
+    else if (action.startsWith('style:')) setDashStyle(action.slice(6));
+    syncDashControls();
   },
-});
+};
 
-function syncRaceControls() {
-  raceDash.setControls({
+const raceDash = new RaceDash($('raceDash'), dashCtx);
+const muscleDash = new MuscleDash($('muscleDash'), dashCtx);
+
+function syncDashControls() {
+  const controls = {
     gps: useGps(),
     recording: !!recorder.rec,
     recText: $('recLabel').textContent.replace('Stop', 'STOP'),
-    focus: document.body.classList.contains('race-focus'),
-  });
+    focus: document.body.classList.contains('dash-focus'),
+  };
+  raceDash.setControls(controls);
+  muscleDash.setControls(controls);
 }
 
-/** Show the race dash or the standard dash, per settings and device. */
+const STYLE_NAMES = { standard: 'Standard dash', race: 'Race dash', muscle: 'Muscle dash' };
+
+/** Show the standard, race or muscle dash, per settings and device. */
 function applyDashStyle() {
-  const race = raceOn();
-  $('view-dash').classList.toggle('race-mode', race);
-  $('raceDash').hidden = !race;
-  if (race && !raceDash.built) raceDash.build();
-  if (!race) setFocus(false);
+  const style = dashStyle();
+  const special = activeDash();
+  $('view-dash').classList.toggle('special-mode', !!special);
+  $('raceDash').hidden = style !== 'race';
+  $('muscleDash').hidden = style !== 'muscle';
+  if (special && !special.built) special.build();
+  if (!special) setFocus(false);
   for (const b of document.querySelectorAll('[data-dashstyle]')) b.setAttribute('aria-checked', String(b.dataset.dashstyle === settings.dashStyle));
   renderTiles();
-  syncRaceControls();
+  syncDashControls();
+  if (style === 'muscle' && state.connected) muscleDash.sweep();
 }
 
 function setDashStyle(style) {
   settings.dashStyle = style;
   saveSettings();
   applyDashStyle();
-  if (style !== 'auto') toast(style === 'race' ? 'Race dash on.' : 'Standard dash on. Switch back any time under Vehicle → Settings.');
+  if (style !== 'auto') toast(`${STYLE_NAMES[style]} on. Change it any time under Vehicle → Settings.`);
 }
 
-/** Focus mode hides the app's top bar so the race dash fills the screen. */
+/** Focus mode hides the app's top bar so the dash fills the screen. */
 function setFocus(on) {
-  document.body.classList.toggle('race-focus', on);
-  syncRaceControls();
+  document.body.classList.toggle('dash-focus', on);
+  syncDashControls();
 }
 
 // =============================================================== units & settings
@@ -686,10 +709,13 @@ function initSettingsUi() {
     saveSettings();
     buildGauge();
     raceDash.buildRpmBar();
+    if (muscleDash.built) muscleDash.refreshSlots(); // tach redline
   });
   for (const b of document.querySelectorAll('[data-dashstyle]')) b.addEventListener('click', () => setDashStyle(b.dataset.dashstyle));
   $('btnRaceDash').addEventListener('click', () => setDashStyle('race'));
+  $('btnMuscleDash').addEventListener('click', () => setDashStyle('muscle'));
   $('raceDash').hidden = true;
+  $('muscleDash').hidden = true;
   for (const b of document.querySelectorAll('[data-dashstyle]')) b.setAttribute('aria-checked', String(b.dataset.dashstyle === settings.dashStyle));
   $('setKeepAwake').addEventListener('change', (e) => {
     settings.keepAwake = e.target.checked;
@@ -737,7 +763,7 @@ function updateSpeedUi() {
   $('btnGps').setAttribute('aria-pressed', String(useGps()));
   for (const b of document.querySelectorAll('[data-speedsrc]')) b.setAttribute('aria-checked', String(b.dataset.speedsrc === settings.speedSource));
   hero.drawn.unit = null;
-  syncRaceControls();
+  syncDashControls();
 }
 
 // =============================================================== customize tiles
@@ -1150,7 +1176,8 @@ const recorder = {
     else this.start();
   },
   start() {
-    const shown = raceOn() ? raceDash.pollKeys().filter((k) => k !== 'mil') : activeTiles();
+    const special = activeDash();
+    const shown = special ? special.pollKeys().filter((k) => k !== 'mil') : activeTiles();
     const keys = [...new Set([...HERO_KEYS.filter(has), ...shown])];
     if (!keys.length) {
       toast('Nothing to record yet — the car isn’t sending live data.', 'error');
@@ -1161,7 +1188,7 @@ const recorder = {
     const tick = () => {
       const s = Math.round((Date.now() - this.rec.started) / 1000);
       $('recLabel').textContent = `Stop ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-      syncRaceControls();
+      syncDashControls();
     };
     tick();
     this.timer = setInterval(tick, 1000);
@@ -1187,7 +1214,7 @@ const recorder = {
     clearInterval(this.timer);
     $('btnRecord').classList.remove('recording');
     $('recLabel').textContent = 'Record';
-    syncRaceControls();
+    syncDashControls();
     if (save && r.rows.length) downloadCsv(r);
   },
 };

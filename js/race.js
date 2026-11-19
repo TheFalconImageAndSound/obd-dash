@@ -3,6 +3,7 @@
 // data strip with session peaks and a 0–60 timer, and warning telltales.
 
 import { SIGNAL_BY_KEY, unitLabel, toDisplay, formatValue, barGeometry } from './pids.js';
+import { LaunchTimer, launchTarget, launchLabel } from './launch.js';
 
 // Each zone shows the first `count` values this car supports, in priority order.
 const ZONES = [
@@ -28,7 +29,8 @@ const CONTROLS = [
   { action: 'record', label: 'REC', toggle: true, cls: 'rec' },
   { action: 'peaks', label: 'RESET PEAKS' },
   { action: 'focus', label: 'FOCUS', toggle: true },
-  { action: 'standard', label: 'STANDARD' },
+  { action: 'style:muscle', label: 'MUSCLE' },
+  { action: 'style:standard', label: 'STANDARD' },
 ];
 
 const LEDS = 15;
@@ -66,7 +68,7 @@ export class RaceDash {
 
   resetPeaks() {
     this.peaks = { rpm: null, speed: null };
-    this.launch = { armed: true, start: null, stillAt: null, last: null, best: null };
+    this.launch = new LaunchTimer();
     this.drawn = {};
     if (this.built) this.update();
   }
@@ -212,7 +214,7 @@ export class RaceDash {
     this.special = {
       peakRpm: this.makeSpecial('PEAK RPM', '', 'SESSION'),
       topSpeed: this.makeSpecial('TOP SPEED', '', `${unitLabel(SIGNAL_BY_KEY.speed, this.ctx.settings.units).toUpperCase()} · SESSION`),
-      launch: this.makeSpecial(this.ctx.settings.units === 'us' ? '0–60' : '0–100', 'SEC', 'BEST --'),
+      launch: this.makeSpecial(launchLabel(this.ctx.settings.units), 'SEC', 'BEST --'),
     };
     this.drawn = {};
     this.update();
@@ -276,15 +278,15 @@ export class RaceDash {
     const speed = ctx.speedKmh();
     if (rpm != null) this.peaks.rpm = Math.max(this.peaks.rpm ?? 0, rpm);
     if (speed != null) this.peaks.speed = Math.max(this.peaks.speed ?? 0, speed);
-    this.trackLaunch(speed, performance.now());
+    this.launch.track(speed, performance.now(), launchTarget(units));
     const sp = this.special;
     sp.peakRpm.value.textContent = this.peaks.rpm == null ? '--' : String(Math.round(this.peaks.rpm / 10) * 10);
     sp.peakRpm.node.classList.toggle('hot', (this.peaks.rpm ?? 0) >= ctx.settings.redline);
     sp.topSpeed.value.textContent = this.peaks.speed == null ? '--' : String(Math.round(toDisplay(SIGNAL_BY_KEY.speed, this.peaks.speed, units)));
     const L = this.launch;
-    if (L.start == null) sp.launch.value.textContent = L.last == null ? '--' : L.last.toFixed(2);
+    if (!L.running) sp.launch.value.textContent = L.last == null ? '--' : L.last.toFixed(2);
     sp.launch.sub.textContent = `BEST ${L.best == null ? '--' : L.best.toFixed(2)}`;
-    sp.launch.node.classList.toggle('running', L.start != null);
+    sp.launch.node.classList.toggle('running', L.running);
 
     // Warning lights
     for (const t of this.tells) {
@@ -302,39 +304,6 @@ export class RaceDash {
       }
     }
     if (this.statusEl) this.statusEl.textContent = ctx.statusText();
-  }
-
-  /** 0–60 mph (or 0–100 km/h): arms when stopped, starts on roll-out, stops at the target speed. */
-  trackLaunch(speedKmh, now) {
-    const L = this.launch;
-    if (speedKmh == null) return;
-    const target = this.ctx.settings.units === 'us' ? 96.5606 : 100;
-    if (speedKmh < 1.5) {
-      L.armed = true;
-      L.start = null;
-      L.stillAt = now;
-      return;
-    }
-    if (L.armed && L.start == null) {
-      // Moving now, stopped at the previous sample: the launch happened in between.
-      L.start = L.stillAt != null ? (L.stillAt + now) / 2 : now;
-      L.armed = false;
-      L.peak = 0;
-    }
-    if (L.start != null) {
-      // Not a real launch if you lift off (speed falls back) or it takes over 30 s.
-      L.peak = Math.max(L.peak, speedKmh);
-      if (speedKmh < L.peak - 8 || now - L.start > 30000) {
-        L.start = null;
-        return;
-      }
-    }
-    if (L.start != null && speedKmh >= target) {
-      const t = (now - L.start) / 1000;
-      L.last = t;
-      L.best = L.best == null ? t : Math.min(L.best, t);
-      L.start = null;
-    }
   }
 
   /** Animation frame: smooth RPM/speed, shift lights, RPM bar. */
@@ -383,8 +352,7 @@ export class RaceDash {
     }
 
     // Live 0–60 clock while a launch is running
-    const L = this.launch;
-    if (L.start != null) this.special.launch.value.textContent = ((performance.now() - L.start) / 1000).toFixed(1);
+    if (this.launch.running) this.special.launch.value.textContent = this.launch.elapsed(performance.now()).toFixed(1);
   }
 
   setControls({ gps, recording, recText, focus }) {

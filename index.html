@@ -104,6 +104,7 @@
       <!-- ---------------------------------------------- Dashboard -->
       <div id="view-dash" class="view dash" role="tabpanel">
         <div id="raceDash" class="race" hidden></div>
+        <div id="muscleDash" class="muscle" hidden></div>
         <div class="hero" id="hero">
           <svg id="gauge" viewBox="0 0 320 320" role="img" aria-label="Tachometer and speed">
             <defs>
@@ -128,6 +129,7 @@
             <button id="btnCustomize" class="btn small"><svg class="ic"><use href="#i-sliders" /></svg>Gauges</button>
             <button id="btnRecord" class="btn small" title="Record a CSV log"><svg class="ic rec"><use href="#i-rec" /></svg><span id="recLabel">Record</span></button>
             <button id="btnRaceDash" class="btn small" title="Switch to the full race-car dashboard"><svg class="ic"><use href="#i-flag" /></svg>Race dash</button>
+            <button id="btnMuscleDash" class="btn small" title="Switch to the analog muscle-car dashboard"><svg class="ic"><use href="#i-gauge" /></svg>Muscle dash</button>
             <button id="btnFullscreen" class="btn small" title="Full screen"><svg class="ic"><use href="#i-expand" /></svg><span class="hide-sm">Full screen</span></button>
           </div>
         </div>
@@ -196,11 +198,12 @@
             </div>
           </div>
           <div class="setting">
-            <div><b>Dashboard style</b><p class="muted small">Race is the full race-car dash. Auto uses it on iPad and tablets, and the standard dash on phones.</p></div>
+            <div><b>Dashboard style</b><p class="muted small">Race is the full race-car dash; Muscle is analog gauges on carbon fiber. Auto uses Race on iPad and tablets, and Standard on phones.</p></div>
             <div class="seg" role="radiogroup" aria-label="Dashboard style">
               <button role="radio" data-dashstyle="auto">Auto</button>
               <button role="radio" data-dashstyle="standard">Standard</button>
               <button role="radio" data-dashstyle="race">Race</button>
+              <button role="radio" data-dashstyle="muscle">Muscle</button>
             </div>
           </div>
           <div class="setting">
