@@ -16,6 +16,7 @@ import {
 } from './pids.js';
 import { describeDtc } from './dtc.js';
 import { GpsSpeed } from './gps.js';
+import { RaceDash } from './race.js';
 
 const $ = (id) => document.getElementById(id);
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -54,6 +55,7 @@ function loadSettings() {
     keepAwake: true,
     verbose: false,
     speedSource: 'obd', // 'obd' (car's speed sensor) or 'gps' (phone)
+    dashStyle: 'auto', // 'auto' (race dash on iPad/tablets), 'standard' or 'race'
   };
   try {
     return { ...defaults, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') };
@@ -96,6 +98,18 @@ function speedNow() {
   return useGps() ? gps.speed : state.values.speed ?? null;
 }
 
+/** Label under the big speed number (units, plus GPS status when GPS is the source). */
+function speedUnitText(speed) {
+  const unit = settings.units === 'us' ? 'MPH' : 'KM/H';
+  if (!useGps()) return unit;
+  return speed != null ? `${unit} · GPS` : gps.status === 'ok' ? 'GPS · NO SIGNAL' : 'WAITING FOR GPS';
+}
+
+// iPad (iPadOS reports itself as a Mac with a touchscreen) or any tablet-sized touch screen.
+const IS_IPAD = /iPad/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isTablet = () => IS_IPAD || (navigator.maxTouchPoints > 0 && Math.min(screen.width, screen.height) >= 700);
+const raceOn = () => settings.dashStyle === 'race' || (settings.dashStyle === 'auto' && isTablet());
+
 function has(key) {
   const sig = SIGNAL_BY_KEY[key];
   if (key === 'speed' && useGps()) return state.connected;
@@ -133,11 +147,17 @@ function pollKeys() {
     if (sig.needs) (sig.needs(has) || []).forEach(add);
     else if (has(k)) want.add(k);
   };
-  [...HERO_KEYS, ...activeTiles()].forEach(add);
+  const shown = raceOn() && raceDash.built ? raceDash.pollKeys() : activeTiles();
+  [...HERO_KEYS, ...shown].forEach(add);
+  // RPM and speed are "hot": read between every other value so the tach and shift lights stay lively.
+  const hot = HERO_KEYS.filter((k) => want.has(k));
   const fast = [];
   const slow = [];
-  for (const k of want) (SIGNAL_BY_KEY[k].rate === 'fast' ? fast : slow).push(k);
-  return { fast, slow };
+  for (const k of want) {
+    if (hot.includes(k)) continue;
+    (SIGNAL_BY_KEY[k].rate === 'fast' ? fast : slow).push(k);
+  }
+  return { hot, fast, slow };
 }
 
 const VEHICLE_GONE = new Set(['UNABLE TO CONNECT', 'BUS INIT ERROR', 'CAN ERROR', 'BUS ERROR']);
@@ -160,10 +180,16 @@ const poller = {
     let slowIdx = 0;
     let timeouts = 0;
     while (alive()) {
-      const { fast, slow } = pollKeys();
-      // Fast values every cycle, plus one slow value per cycle in rotation.
-      const batch = [...fast];
-      if (slow.length) batch.push(slow[slowIdx++ % slow.length]);
+      const { hot, fast, slow } = pollKeys();
+      // Fast values every cycle, plus one slow value per cycle in rotation,
+      // with RPM/speed interleaved between them.
+      const rest = [...fast];
+      if (slow.length) rest.push(slow[slowIdx++ % slow.length]);
+      const batch = [];
+      for (let i = 0; i < Math.max(rest.length, hot.length); i++) {
+        if (hot.length) batch.push(hot[i % hot.length]);
+        if (i < rest.length) batch.push(rest[i]);
+      }
       if (!batch.length) {
         await sleep(400);
         continue;
@@ -294,7 +320,7 @@ function enterApp() {
   $('screen-connect').hidden = true;
   $('screen-app').hidden = false;
   buildGauge();
-  renderTiles();
+  applyDashStyle();
   renderCodes();
   updateBanner();
   updateHeader();
@@ -342,6 +368,7 @@ function teardown(message) {
   Object.assign(state, { connected: false, vehicle: false, busy: false, elm: null, transport: null });
   updateWakeLock();
   updateGps();
+  setFocus(false);
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
   $('screen-app').hidden = true;
   $('screen-connect').hidden = false;
@@ -480,6 +507,10 @@ function frame(ts) {
   if (state.tab !== 'dash' || !state.connected) return;
   const dt = hero.last ? Math.min(0.1, (ts - hero.last) / 1000) : 0.016;
   hero.last = ts;
+  if (raceOn()) {
+    raceDash.frame(dt);
+    return;
+  }
   const rpmT = state.values.rpm;
   const spdT = speedNow();
   hero.rpm += ((rpmT ?? 0) - hero.rpm) * Math.min(1, dt * 9);
@@ -499,9 +530,7 @@ function frame(ts) {
   const spdText = spdT == null ? '--' : String(Math.round(spd));
   if (spdText !== hero.drawn.speed) $('gSpeed').textContent = hero.drawn.speed = spdText;
 
-  const unit = settings.units === 'us' ? 'MPH' : 'KM/H';
-  let unitText = unit;
-  if (useGps()) unitText = spdT != null ? `${unit} · GPS` : gps.status === 'ok' ? 'GPS · NO SIGNAL' : 'WAITING FOR GPS';
+  const unitText = speedUnitText(spdT);
   if (unitText !== hero.drawn.unit) $('gSpeedUnit').textContent = hero.drawn.unit = unitText;
 
   const cls = rpmT == null ? '' : hero.rpm >= settings.redline ? 'over' : hero.rpm >= settings.redline - 600 ? 'near' : '';
@@ -539,6 +568,7 @@ function renderTiles() {
   if (!keys.length && state.vehicle) {
     wrap.append(el('p', { class: 'muted small', text: 'No gauges selected — tap “Gauges” to add some.' }));
   }
+  if (raceOn()) raceDash.refreshSlots();
   updateTiles();
 }
 
@@ -560,7 +590,70 @@ function updateTiles() {
     t.tile.classList.toggle('crit', level === 'crit');
     t.tile.classList.toggle('na', v == null);
   }
+  if (raceOn()) raceDash.update();
   updateHeader();
+}
+
+// =============================================================== race dash
+
+const raceDash = new RaceDash($('raceDash'), {
+  settings,
+  has,
+  valueOf,
+  values: () => state.values,
+  speedKmh: speedNow,
+  speedUnitText,
+  gaugeMax,
+  milOn: () => (state.values.mil != null ? state.values.mil === 1 : !!state.codes?.status?.mil),
+  statusText: () => {
+    if (!state.connected) return '';
+    const proto = state.vehicle ? state.elm.protocolName.split(' (')[0] : 'CAR NOT RESPONDING';
+    return `${state.transport?.name || 'ADAPTER'} · ${proto}`.toUpperCase();
+  },
+  onAction: (action) => {
+    if (action === 'gps') setSpeedSource(useGps() ? 'obd' : 'gps');
+    else if (action === 'record') recorder.toggle();
+    else if (action === 'peaks') {
+      raceDash.resetPeaks();
+      toast('Peaks and 0–60 times reset.');
+    } else if (action === 'focus') setFocus(!document.body.classList.contains('race-focus'));
+    else if (action === 'standard') setDashStyle('standard');
+    syncRaceControls();
+  },
+});
+
+function syncRaceControls() {
+  raceDash.setControls({
+    gps: useGps(),
+    recording: !!recorder.rec,
+    recText: $('recLabel').textContent.replace('Stop', 'STOP'),
+    focus: document.body.classList.contains('race-focus'),
+  });
+}
+
+/** Show the race dash or the standard dash, per settings and device. */
+function applyDashStyle() {
+  const race = raceOn();
+  $('view-dash').classList.toggle('race-mode', race);
+  $('raceDash').hidden = !race;
+  if (race && !raceDash.built) raceDash.build();
+  if (!race) setFocus(false);
+  for (const b of document.querySelectorAll('[data-dashstyle]')) b.setAttribute('aria-checked', String(b.dataset.dashstyle === settings.dashStyle));
+  renderTiles();
+  syncRaceControls();
+}
+
+function setDashStyle(style) {
+  settings.dashStyle = style;
+  saveSettings();
+  applyDashStyle();
+  if (style !== 'auto') toast(style === 'race' ? 'Race dash on.' : 'Standard dash on. Switch back any time under Vehicle → Settings.');
+}
+
+/** Focus mode hides the app's top bar so the race dash fills the screen. */
+function setFocus(on) {
+  document.body.classList.toggle('race-focus', on);
+  syncRaceControls();
 }
 
 // =============================================================== units & settings
@@ -592,7 +685,12 @@ function initSettingsUi() {
     e.target.value = settings.redline;
     saveSettings();
     buildGauge();
+    raceDash.buildRpmBar();
   });
+  for (const b of document.querySelectorAll('[data-dashstyle]')) b.addEventListener('click', () => setDashStyle(b.dataset.dashstyle));
+  $('btnRaceDash').addEventListener('click', () => setDashStyle('race'));
+  $('raceDash').hidden = true;
+  for (const b of document.querySelectorAll('[data-dashstyle]')) b.setAttribute('aria-checked', String(b.dataset.dashstyle === settings.dashStyle));
   $('setKeepAwake').addEventListener('change', (e) => {
     settings.keepAwake = e.target.checked;
     saveSettings();
@@ -639,6 +737,7 @@ function updateSpeedUi() {
   $('btnGps').setAttribute('aria-pressed', String(useGps()));
   for (const b of document.querySelectorAll('[data-speedsrc]')) b.setAttribute('aria-checked', String(b.dataset.speedsrc === settings.speedSource));
   hero.drawn.unit = null;
+  syncRaceControls();
 }
 
 // =============================================================== customize tiles
@@ -647,7 +746,7 @@ function openCustomize() {
   const list = $('customizeList');
   list.textContent = '';
   for (const sig of SIGNALS) {
-    if (HERO_KEYS.includes(sig.key)) continue;
+    if (HERO_KEYS.includes(sig.key) || sig.hidden) continue;
     const supported = !state.vehicle || has(sig.key);
     const cb = el('input', { type: 'checkbox', value: sig.key });
     cb.checked = settings.tiles.includes(sig.key);
@@ -1002,7 +1101,7 @@ function renderVehicleInfo() {
   dl.append(kv('Protocol', state.vehicle ? elm.protocolName : '—'));
   dl.append(kv('VIN', state.vin === undefined ? (state.vehicle ? 'Reading…' : '—') : state.vin || 'Not reported', true));
   if (state.vehicle) {
-    const live = SIGNALS.filter((s) => s.pid != null && elm.supported.has(s.pid)).length;
+    const live = SIGNALS.filter((s) => s.pid != null && !s.hidden && elm.supported.has(s.pid)).length;
     dl.append(kv('Live values available', `${live} (${elm.supported.size} PIDs)`));
   }
   for (const key of ['clearDist', 'milDist', 'runtime']) {
@@ -1051,7 +1150,8 @@ const recorder = {
     else this.start();
   },
   start() {
-    const keys = [...HERO_KEYS.filter(has), ...activeTiles()];
+    const shown = raceOn() ? raceDash.pollKeys().filter((k) => k !== 'mil') : activeTiles();
+    const keys = [...new Set([...HERO_KEYS.filter(has), ...shown])];
     if (!keys.length) {
       toast('Nothing to record yet — the car isn’t sending live data.', 'error');
       return;
@@ -1061,6 +1161,7 @@ const recorder = {
     const tick = () => {
       const s = Math.round((Date.now() - this.rec.started) / 1000);
       $('recLabel').textContent = `Stop ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+      syncRaceControls();
     };
     tick();
     this.timer = setInterval(tick, 1000);
@@ -1086,6 +1187,7 @@ const recorder = {
     clearInterval(this.timer);
     $('btnRecord').classList.remove('recording');
     $('recLabel').textContent = 'Record';
+    syncRaceControls();
     if (save && r.rows.length) downloadCsv(r);
   },
 };
@@ -1239,6 +1341,10 @@ if ('serviceWorker' in navigator && window.isSecureContext && !isLocalDev) {
 wireEvents();
 initSettingsUi();
 checkSupport();
+// The race dash sizes itself to the space under the app bar.
+new ResizeObserver(([entry]) => {
+  document.documentElement.style.setProperty('--appbar-h', `${Math.round(entry.target.getBoundingClientRect().height)}px`);
+}).observe(document.querySelector('.appbar'));
 // iPhone can't full-screen a web page; hide the button where it wouldn't work.
 if (!document.fullscreenEnabled) $('btnFullscreen').hidden = true;
 logLine('info', 'Ready. Connect an adapter to start.');

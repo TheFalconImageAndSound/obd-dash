@@ -1,7 +1,8 @@
 // Offline support: serve the app from cache instantly, refresh the cache in the background.
 // After you deploy an update, the next launch fetches it and the launch after that uses it.
 
-const CACHE = 'obd-dash-v3';
+const CACHE = 'obd-dash-v4';
+const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
 const SHELL = [
   './',
   './index.html',
@@ -15,6 +16,7 @@ const SHELL = [
   './js/pids.js',
   './js/sim.js',
   './js/gps.js',
+  './js/race.js',
   './icons/falcon-mark.png',
   './icons/favicon-64.png',
   './icons/apple-touch-icon.png',
@@ -37,7 +39,22 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (FONT_HOSTS.includes(url.hostname)) {
+    // The race-dash font: cache it the first time so the dash looks right offline.
+    event.respondWith(
+      caches.open(CACHE).then(async (cache) => {
+        const hit = await cache.match(req);
+        if (hit) return hit;
+        const res = await fetch(req);
+        if (res.ok || res.type === 'opaque') cache.put(req, res.clone());
+        return res;
+      })
+    );
+    return;
+  }
+  if (url.origin !== location.origin) return;
   event.respondWith(
     caches.open(CACHE).then(async (cache) => {
       const cached = await cache.match(req, { ignoreSearch: true });

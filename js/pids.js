@@ -72,6 +72,8 @@ export const SIGNALS = [
   { key: 'baro', pid: 0x33, label: 'Barometric pressure', short: 'Baro', kind: 'pressure', min: 70, max: 105, dec: { metric: 0, us: 1 }, rate: 'slow', decode: (d) => d[0] },
   { key: 'runtime', pid: 0x1f, label: 'Run time since engine start', short: 'Run time', kind: 'time', min: 0, max: 3600, dec: 0, rate: 'slow', decode: word, noBar: true },
   { key: 'clearDist', pid: 0x31, label: 'Distance since codes cleared', short: 'Since clear', kind: 'distance', min: 0, max: 1000, dec: 0, rate: 'slow', decode: word, noBar: true },
+  // Check-engine light on/off (Mode 01 PID 01, bit 7). Not a tile; drives the race dash warning light.
+  { key: 'mil', pid: 0x01, label: 'Check-engine light', short: 'CEL', kind: 'flag', min: 0, max: 1, dec: 0, rate: 'slow', decode: (d) => (d[0] & 0x80 ? 1 : 0), hidden: true, noBar: true },
   { key: 'milDist', pid: 0x21, label: 'Distance driven with check-engine light on', short: 'CEL dist.', kind: 'distance', min: 0, max: 1000, dec: 0, rate: 'slow', decode: word, noBar: true },
 ];
 
@@ -95,6 +97,7 @@ const KINDS = {
   pressure: { metric: 'kPa', us: 'psi', toUs: (v) => v * 0.145038 },
   distance: { metric: 'km', us: 'mi', toUs: (v) => v * 0.621371 },
   time: { metric: '', us: '' },
+  flag: { metric: '', us: '' },
   ratio: { metric: 'λ', us: 'λ' },
   fuelrate: { metric: 'L/h', us: 'gal/h', toUs: (v) => v * 0.264172 },
   economy: { metric: 'L/100km', us: 'mpg', toUs: (v) => (v > 0 ? 235.215 / v : null) },
