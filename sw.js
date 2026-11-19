@@ -1,7 +1,7 @@
 // Offline support: serve the app from cache instantly, refresh the cache in the background.
 // After you deploy an update, the next launch fetches it and the launch after that uses it.
 
-const CACHE = 'obd-dash-v5';
+const CACHE = 'obd-dash-v6';
 const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
 const SHELL = [
   './',
@@ -19,6 +19,7 @@ const SHELL = [
   './js/race.js',
   './js/muscle.js',
   './js/launch.js',
+  './js/gear.js',
   './icons/falcon-mark.png',
   './icons/favicon-64.png',
   './icons/apple-touch-icon.png',

@@ -388,7 +388,10 @@ export class MuscleDash {
     this.launchDigits = el('span', 'mm-drum', '--.--');
     this.launchBest = el('span', 'mm-meter-sub', 'BEST --');
     this.launchEl.append(this.launchLabelEl, this.launchDigits, this.launchBest);
-    center.append(this.shift, this.tripEl, this.launchEl);
+    this.gearEl = el('div', 'mm-gear');
+    this.gearNum = el('b', null, '–');
+    this.gearEl.append(el('span', 'mm-meter-label', 'GEAR'), this.gearNum);
+    center.append(this.shift, this.gearEl, this.tripEl, this.launchEl);
     main.append(this.tachWrap, center, this.speedoWrap);
 
     // Auxiliary gauge row
@@ -555,6 +558,13 @@ export class MuscleDash {
     if (unitText !== this.drawn.unit) this.speedo.unitText.textContent = this.drawn.unit = unitText;
 
     if (this.launch.running) this.launchDigits.textContent = this.launch.elapsed(now).toFixed(2).padStart(5, '0');
+
+    const gear = ctx.gear();
+    const gearText = gear ?? '–';
+    if (gearText !== this.drawn.gear) {
+      this.gearNum.textContent = this.drawn.gear = gearText;
+      this.gearEl.classList.toggle('lit', gear != null);
+    }
   }
 
   setControls({ gps, recording, recText, focus }) {

@@ -1,6 +1,8 @@
 // Live-data signals: Mode 01 PIDs, adapter voltage, and a few derived values.
 // Every value is stored in metric and converted for display.
 
+import { decodeGearPid } from './gear.js';
+
 const pct = (d) => (d[0] * 100) / 255;
 const trim = (d) => ((d[0] - 128) * 100) / 128;
 const word = (d) => d[0] * 256 + d[1];
@@ -72,6 +74,10 @@ export const SIGNALS = [
   { key: 'baro', pid: 0x33, label: 'Barometric pressure', short: 'Baro', kind: 'pressure', min: 70, max: 105, dec: { metric: 0, us: 1 }, rate: 'slow', decode: (d) => d[0] },
   { key: 'runtime', pid: 0x1f, label: 'Run time since engine start', short: 'Run time', kind: 'time', min: 0, max: 3600, dec: 0, rate: 'slow', decode: word, noBar: true },
   { key: 'clearDist', pid: 0x31, label: 'Distance since codes cleared', short: 'Since clear', kind: 'distance', min: 0, max: 1000, dec: 0, rate: 'slow', decode: word, noBar: true },
+  // Gear the car reports itself (PID A4, newer cars only); otherwise the app estimates it.
+  { key: 'gearPid', pid: 0xa4, label: 'Transmission gear (reported)', short: 'Gear', kind: 'flag', min: 0, max: 10, dec: 0, rate: 'fast', decode: decodeGearPid, hidden: true, noBar: true },
+  // Current gear, reported or estimated (worked out in app.js). Used for logging.
+  { key: 'gear', label: 'Gear', short: 'Gear', kind: 'flag', min: 0, max: 10, dec: 0, hidden: true, noBar: true },
   // Check-engine light on/off (Mode 01 PID 01, bit 7). Not a tile; drives the race dash warning light.
   { key: 'mil', pid: 0x01, label: 'Check-engine light', short: 'CEL', kind: 'flag', min: 0, max: 1, dec: 0, rate: 'slow', decode: (d) => (d[0] & 0x80 ? 1 : 0), hidden: true, noBar: true },
   { key: 'milDist', pid: 0x21, label: 'Distance driven with check-engine light on', short: 'CEL dist.', kind: 'distance', min: 0, max: 1000, dec: 0, rate: 'slow', decode: word, noBar: true },

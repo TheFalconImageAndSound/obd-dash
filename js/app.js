@@ -18,6 +18,7 @@ import { describeDtc } from './dtc.js';
 import { GpsSpeed } from './gps.js';
 import { RaceDash } from './race.js';
 import { MuscleDash } from './muscle.js';
+import { GearEstimator } from './gear.js';
 
 const $ = (id) => document.getElementById(id);
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -56,7 +57,8 @@ function loadSettings() {
     keepAwake: true,
     verbose: false,
     speedSource: 'obd', // 'obd' (car's speed sensor) or 'gps' (phone)
-    dashStyle: 'auto', // 'auto' (race dash on iPad/tablets), 'standard' or 'race'
+    dashStyle: 'auto', // 'auto' (race dash on iPad/tablets), 'standard', 'race' or 'muscle'
+    gears: 0, // forward gears in this car's transmission; 0 = work it out
   };
   try {
     return { ...defaults, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') };
@@ -121,8 +123,49 @@ function activeDash() {
   return s === 'race' ? raceDash : s === 'muscle' ? muscleDash : null;
 }
 
+// =============================================================== gear
+
+const safeStorage = {
+  getItem: (k) => {
+    try {
+      return localStorage.getItem(k);
+    } catch {
+      return null;
+    }
+  },
+  setItem: (k, v) => {
+    try {
+      localStorage.setItem(k, v);
+    } catch {
+      /* blocked */
+    }
+  },
+};
+const gearEst = new GearEstimator({ storage: safeStorage });
+
+/** Current gear as a label ("1".."10", "N"), or null when unknown / shifting / stopped. */
+function gearNow() {
+  if (!state.connected) return null;
+  const reported = state.values.gearPid;
+  if (has('gearPid') && reported != null) return reported === 0 ? 'N' : String(reported);
+  const g = gearEst.gearFor(state.values.rpm, speedNow(), settings.gears);
+  return g == null ? null : String(g);
+}
+
+function feedGear() {
+  gearEst.sample(state.values.rpm, speedNow());
+}
+
+function gearStatusText() {
+  if (state.connected && has('gearPid') && state.values.gearPid != null) return 'Your car reports its gear directly.';
+  const n = gearEst.learned;
+  if (!n) return 'Learns your gear ratios from RPM and speed as you drive — steady driving in each gear teaches it.';
+  return `Learned ${n} gear${n === 1 ? '' : 's'} for this car. Drive through every gear (1st from a stop) to finish; it keeps improving.`;
+}
+
 function has(key) {
   const sig = SIGNAL_BY_KEY[key];
+  if (key === 'gear') return has('gearPid') || (has('rpm') && has('speed'));
   if (key === 'speed' && useGps()) return state.connected;
   if (!sig || state.dead.has(key) || !state.connected) return false;
   if (sig.source === 'atrv') return true;
@@ -132,6 +175,10 @@ function has(key) {
 
 function valueOf(key) {
   if (key === 'speed') return speedNow();
+  if (key === 'gear') {
+    const g = gearNow();
+    return g == null ? null : g === 'N' ? 0 : Number(g);
+  }
   const sig = SIGNAL_BY_KEY[key];
   if (sig.derive) return sig.derive({ ...state.values, speed: speedNow() });
   return state.values[key] ?? null;
@@ -161,6 +208,7 @@ function pollKeys() {
   const special = activeDash();
   const shown = special?.built ? special.pollKeys() : activeTiles();
   [...HERO_KEYS, ...shown].forEach(add);
+  if (has('gearPid')) want.add('gearPid');
   // RPM and speed are "hot": read between every other value so the tach and shift lights stay lively.
   const hot = HERO_KEYS.filter((k) => want.has(k));
   const fast = [];
@@ -213,6 +261,7 @@ const poller = {
           state.values[key] = await readSignal(key);
           fails[key] = 0;
           timeouts = 0;
+          if (key === 'rpm' || key === 'speed') feedGear();
         } catch (err) {
           if (!alive() || err.code === 'DISCONNECTED') return;
           if (err.code === 'TIMEOUT') {
@@ -340,7 +389,22 @@ function enterApp() {
   setTab('dash');
   updateWakeLock();
   updateGps();
+  loadGearProfile();
   if (!state.vehicle) toast('Connected to the adapter, but the car isn’t answering yet.', 'error');
+}
+
+/** Gear ratios are learned per car: keyed by VIN, or a shared profile if the car won't say. */
+async function loadGearProfile() {
+  const demo = state.transport instanceof SimTransport;
+  if (!demo && state.vehicle && state.vin === undefined) {
+    try {
+      state.vin = await state.elm.readVin();
+    } catch {
+      state.vin = null;
+    }
+  }
+  if (!state.connected) return;
+  gearEst.load(demo ? 'demo' : state.vin || 'default');
 }
 
 async function onTransportDisconnect({ manual }) {
@@ -377,6 +441,7 @@ async function onTransportDisconnect({ manual }) {
 function teardown(message) {
   poller.stop();
   recorder.stop(true);
+  gearEst.save(true);
   Object.assign(state, { connected: false, vehicle: false, busy: false, elm: null, transport: null });
   updateWakeLock();
   updateGps();
@@ -545,6 +610,8 @@ function frame(ts) {
 
   const unitText = speedUnitText(spdT);
   if (unitText !== hero.drawn.unit) $('gSpeedUnit').textContent = hero.drawn.unit = unitText;
+  const gearText = gearNow() ?? '–';
+  if (gearText !== hero.drawn.gear) $('gGear').textContent = hero.drawn.gear = gearText;
 
   const cls = rpmT == null ? '' : hero.rpm >= settings.redline ? 'over' : hero.rpm >= settings.redline - 600 ? 'near' : '';
   if (cls !== hero.cls) {
@@ -617,6 +684,7 @@ const dashCtx = {
   speedKmh: speedNow,
   speedUnitText,
   gaugeMax,
+  gear: gearNow,
   milOn: () => (state.values.mil != null ? state.values.mil === 1 : !!state.codes?.status?.mil),
   statusText: () => {
     if (!state.connected) return '';
@@ -700,6 +768,16 @@ function updateUnitsUi() {
 
 function initSettingsUi() {
   $('setRedline').value = settings.redline;
+  $('setGears').value = String(settings.gears);
+  $('setGears').addEventListener('change', (e) => {
+    settings.gears = Number(e.target.value) || 0;
+    saveSettings();
+  });
+  $('btnRelearnGears').addEventListener('click', () => {
+    gearEst.reset();
+    $('gearStatus').textContent = gearStatusText();
+    toast('Gear ratios cleared for this car — they’ll be relearned as you drive.');
+  });
   $('setKeepAwake').checked = settings.keepAwake;
   $('setVerbose').checked = settings.verbose;
   $('setRedline').addEventListener('change', (e) => {
@@ -748,6 +826,7 @@ function onGpsUpdate(g) {
     setSpeedSource('obd', { quiet: true });
     return;
   }
+  if (g.status === 'ok') feedGear();
   updateTiles(); // economy uses speed too
 }
 
@@ -1113,6 +1192,7 @@ async function loadVehicleInfo(force = false) {
 }
 
 function renderVehicleInfo() {
+  $('gearStatus').textContent = gearStatusText();
   const dl = $('infoList');
   dl.textContent = '';
   if (!state.connected) return;
@@ -1178,7 +1258,7 @@ const recorder = {
   start() {
     const special = activeDash();
     const shown = special ? special.pollKeys().filter((k) => k !== 'mil') : activeTiles();
-    const keys = [...new Set([...HERO_KEYS.filter(has), ...shown])];
+    const keys = [...new Set([...HERO_KEYS.filter(has), ...(has('gear') ? ['gear'] : []), ...shown])];
     if (!keys.length) {
       toast('Nothing to record yet — the car isn’t sending live data.', 'error');
       return;
@@ -1202,7 +1282,7 @@ const recorder = {
       ...r.keys.map((k) => {
         const sig = SIGNAL_BY_KEY[k];
         const d = toDisplay(sig, valueOf(k), r.units);
-        return d == null ? '' : d.toFixed(Math.max(1, decimals(sig, r.units)));
+        return d == null ? '' : d.toFixed(sig.kind === 'flag' ? 0 : Math.max(1, decimals(sig, r.units)));
       }),
     ]);
     if (r.rows.length > 500000) r.rows.shift();
@@ -1342,6 +1422,7 @@ function wireEvents() {
     updatePolling();
     updateWakeLock();
     updateGps();
+    if (document.hidden) gearEst.save(true);
   });
 }
 
@@ -1377,4 +1458,4 @@ if (!document.fullscreenEnabled) $('btnFullscreen').hidden = true;
 logLine('info', 'Ready. Connect an adapter to start.');
 
 // Handy for poking at the app from the browser console.
-window.obdDash = { state, settings };
+window.obdDash = { state, settings, gearEst, gearNow };

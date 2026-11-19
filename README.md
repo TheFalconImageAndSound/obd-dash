@@ -12,6 +12,7 @@ A free web app for the **Veepeak OBDCheck BLE+** (and other Bluetooth LE ELM327 
 - **Digital dashboard** — tachometer with shift light, speed, and tiles for coolant, battery, boost, fuel trims, oil temp, economy and more (only what your car supports)
 - **Race Dash** — a full-screen race-car dashboard that turns on automatically on iPad/tablets: shift-light LEDs (green → amber → red → flashing blue at redline), a segmented RPM bar, huge speed + RPM, temperature and power columns, a bottom data strip with peak RPM, top speed and a **0–60 timer**, and warning lights. Tap **Focus** to hide the app bar. Pick Auto / Standard / Race / Muscle under Vehicle → Settings.
 - **Muscle Dash** — a restomod / stock-car cluster on a carbon-fibre panel: big chrome-bezel analog tach and speedometer with sprung needles (and a start-up needle sweep), a peak-RPM tell-tale needle, a row of six analog gauges (water, oil, volts, fuel, boost…), a SHIFT lamp, jewel warning lamps, a trip meter and the 0–60 timer.
+- **Gear indicator** on every dashboard. Uses the gear your car reports if it supports that (newer cars), otherwise learns your transmission’s ratios from RPM and speed as you drive and remembers them per car (by VIN). Set your number of gears and relearn under Vehicle → Settings → Gear display.
 - **GPS speed** — one tap switches the speedometer to the phone’s GPS (handy if your car doesn’t report speed, and it frees the adapter to update RPM faster)
 - **Record** live data to a CSV file, **US / metric** units, keeps the screen awake
 - **Demo mode** with a simulated car, and a raw **console** for ELM327 commands
@@ -115,6 +116,7 @@ Generic OBD-II only covers the engine/emissions computer (and often the transmis
 | “Car isn’t answering” banner | Ignition must be ON. Tap **Retry**. Some cars need the engine running. |
 | A gauge tile disappears | Your car doesn’t report that value — normal. Pick others under **Gauges**. |
 | Updates feel slow | Fewer tiles = faster refresh. RPM/speed update most often; temperatures rotate in slower. Turning on **GPS speed** also speeds up RPM. |
+| Gear shows “–” | Normal while stopped, shifting, coasting with the clutch in, or before it has learned that gear. Drive steadily in each gear for a few seconds (and pull away from a stop for 1st). If it numbers gears wrong, set your gear count under Vehicle → Settings → Gear display, or tap **Relearn**. |
 | GPS speed shows “Waiting for GPS” | Give it a few seconds outdoors with a clear sky view. Location must be allowed for the browser. GPS speed is shown only while the phone is getting fresh fixes. |
 | Something odd | **Console** tab shows every command and reply. Turn on *Log dashboard traffic* under Vehicle → Settings for full detail. |
 
@@ -138,6 +140,7 @@ npm test       # protocol + parser tests against the simulated adapter
 | `js/sim.js` | Simulated adapter + car for demo mode and tests |
 | `js/race.js` | The Race Dash layout (shift lights, RPM bar, data slots, peaks) |
 | `js/muscle.js` | The Muscle Dash (analog gauges with needle physics, carbon-fibre texture, shift lamp, trip meter) |
+| `js/gear.js` | Gear indicator: learns gear ratios from RPM ÷ speed, plus the car-reported gear (PID A4) |
 | `js/launch.js` | 0–60 / 0–100 timer shared by both special dashes |
 | `js/gps.js` | Phone GPS speed (uses the phone’s speed, or works it out from position changes) |
 | `sw.js`, `manifest.webmanifest`, `icons/` | Installable app + offline support |

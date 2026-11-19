@@ -116,6 +116,11 @@
             <path id="gValue" class="g-value" pathLength="100" stroke-dasharray="0 100" filter="url(#glow)" />
             <text id="gSpeed" class="g-speed" x="160" y="182" text-anchor="middle">--</text>
             <text id="gSpeedUnit" class="g-unit" x="160" y="214" text-anchor="middle">MPH</text>
+            <g class="g-gear" aria-label="Gear">
+              <rect x="226" y="268" width="46" height="48" rx="9" />
+              <text class="g-gear-label" x="249" y="281" text-anchor="middle">GEAR</text>
+              <text id="gGear" class="g-gear-num" x="249" y="309" text-anchor="middle">–</text>
+            </g>
             <text id="gRpm" class="g-rpm" x="160" y="288" text-anchor="middle">--</text>
             <text class="g-unit" x="160" y="306" text-anchor="middle">RPM</text>
           </svg>
@@ -211,6 +216,23 @@
             <div class="seg" role="radiogroup" aria-label="Speedometer source">
               <button role="radio" data-speedsrc="obd">Car</button>
               <button role="radio" data-speedsrc="gps">GPS</button>
+            </div>
+          </div>
+          <div class="setting">
+            <div><label for="setGears"><b>Gear display</b></label><p class="muted small" id="gearStatus">Learns your gear ratios from RPM and speed as you drive.</p></div>
+            <div class="gear-ctrls">
+              <select id="setGears" aria-label="Forward gears in your transmission">
+                <option value="0">Auto</option>
+                <option value="3">3-speed</option>
+                <option value="4">4-speed</option>
+                <option value="5">5-speed</option>
+                <option value="6">6-speed</option>
+                <option value="7">7-speed</option>
+                <option value="8">8-speed</option>
+                <option value="9">9-speed</option>
+                <option value="10">10-speed</option>
+              </select>
+              <button id="btnRelearnGears" class="btn small" type="button">Relearn</button>
             </div>
           </div>
           <div class="setting">

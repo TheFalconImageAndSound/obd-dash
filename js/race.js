@@ -135,7 +135,10 @@ export class RaceDash {
     this.rpmLine = el('div', 'rd-rpmline');
     this.rpmNum = el('span', null, '----');
     this.rpmLine.append(this.rpmNum, el('small', null, 'RPM'));
-    center.append(this.speedEl, this.speedUnitEl, this.rpmLine);
+    const gearBox = el('div', 'rd-gear');
+    this.gearNum = el('b', null, '–');
+    gearBox.append(el('span', null, 'GEAR'), this.gearNum);
+    center.append(gearBox, this.speedEl, this.speedUnitEl, this.rpmLine);
     main.append(this.cols.left, center, this.cols.right);
 
     // Bottom strip
@@ -353,6 +356,9 @@ export class RaceDash {
 
     // Live 0–60 clock while a launch is running
     if (this.launch.running) this.special.launch.value.textContent = this.launch.elapsed(performance.now()).toFixed(1);
+
+    const gear = ctx.gear() ?? '–';
+    if (gear !== this.drawn.gear) this.gearNum.textContent = this.drawn.gear = gear;
   }
 
   setControls({ gps, recording, recText, focus }) {
