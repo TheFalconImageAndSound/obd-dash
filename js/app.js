@@ -700,11 +700,20 @@ function syncDashControls() {
 
 const STYLE_NAMES = { standard: 'Standard dash', race: 'Race dash', muscle: 'Muscle dash' };
 
+/** Phone-sized screen? The race and muscle dashes have a separate layout for these. */
+function phoneLayout() {
+  return innerWidth < 760 || Math.min(innerWidth, innerHeight) < 600;
+}
+
 /** Show the standard, race or muscle dash, per settings and device. */
 function applyDashStyle() {
   const style = dashStyle();
   const special = activeDash();
+  const compact = phoneLayout();
+  raceDash.setCompact(compact);
+  muscleDash.setCompact(compact);
   $('view-dash').classList.toggle('special-mode', !!special);
+  $('view-dash').classList.toggle('phone-dash', !!special && compact);
   $('raceDash').hidden = style !== 'race';
   $('muscleDash').hidden = style !== 'muscle';
   if (special && !special.built) special.build();
@@ -1460,10 +1469,22 @@ wireEvents();
 initSettingsUi();
 checkSupport();
 forgetLearnedGears();
-// The race dash sizes itself to the space under the app bar.
+// The race and muscle dashes size themselves to the space under the app bar.
 new ResizeObserver(([entry]) => {
   document.documentElement.style.setProperty('--appbar-h', `${Math.round(entry.target.getBoundingClientRect().height)}px`);
 }).observe(document.querySelector('.appbar'));
+
+// Switch between the iPad and phone layouts if the screen size class changes.
+let lastCompact = phoneLayout();
+let resizeTimer = null;
+addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    const compact = phoneLayout();
+    if (compact !== lastCompact && state.connected) applyDashStyle();
+    lastCompact = compact;
+  }, 200);
+});
 // iPhone can't full-screen a web page; hide the button where it wouldn't work.
 if (!document.fullscreenEnabled) $('btnFullscreen').hidden = true;
 logLine('info', 'Ready. Connect an adapter to start.');

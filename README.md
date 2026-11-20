@@ -13,6 +13,7 @@ A free web app for the **Veepeak OBDCheck BLE+** (and other Bluetooth LE ELM327 
 - **Race Dash** — a full-screen race-car dashboard that turns on automatically on iPad/tablets: shift-light LEDs (green → amber → red → flashing blue at redline), a segmented RPM bar, huge speed + RPM, temperature and power columns, a bottom data strip with peak RPM, top speed and a **0–60 timer**, and warning lights. Tap **Focus** to hide the app bar. Pick Auto / Standard / Race / Muscle under Vehicle → Settings.
 - **Muscle Dash** — a restomod / stock-car cluster on a carbon-fibre panel: big chrome-bezel analog tach and speedometer with sprung needles (and a start-up needle sweep), a peak-RPM tell-tale needle, a row of six analog gauges (water, oil, volts, fuel, boost…), a SHIFT lamp, jewel warning lamps, a trip meter and the 0–60 timer.
 - **Gear indicator** on every dashboard, with a **GEAR** button to turn it on or off. It only works when the transmission reports its gear over OBD-II (some newer cars); on cars that don’t, the button is dimmed and the gear isn’t shown — nothing is guessed.
+- **iPad and iPhone versions** of the Race and Muscle dashes, picked automatically by screen size. The phone versions fit on one screen in portrait or sideways (in landscape the Muscle dash goes stock-car style: tach and speedo in the middle, two small gauges stacked each side), and the controls fold into a **MENU** button. Tap **FOCUS** in the menu for the most room.
 - **GPS speed** — one tap switches the speedometer to the phone’s GPS (handy if your car doesn’t report speed, and it frees the adapter to update RPM faster)
 - **Record** live data to a CSV file, **US / metric** units, keeps the screen awake
 - **Demo mode** with a simulated car, and a raw **console** for ELM327 commands
@@ -141,6 +142,7 @@ npm test       # protocol + parser tests against the simulated adapter
 | `js/race.js` | The Race Dash layout (shift lights, RPM bar, data slots, peaks) |
 | `js/muscle.js` | The Muscle Dash (analog gauges with needle physics, carbon-fibre texture, shift lamp, trip meter) |
 | `js/gear.js` | Gear indicator: decodes the transmission-reported gear (PID A4) |
+| `js/dashmenu.js` | The MENU button that holds the Race/Muscle controls on phones |
 | `js/launch.js` | 0–60 / 0–100 timer shared by both special dashes |
 | `js/gps.js` | Phone GPS speed (uses the phone’s speed, or works it out from position changes) |
 | `sw.js`, `manifest.webmanifest`, `icons/` | Installable app + offline support |

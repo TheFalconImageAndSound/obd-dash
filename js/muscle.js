@@ -5,18 +5,20 @@
 
 import { SIGNAL_BY_KEY, toDisplay, formatValue, unitLabel } from './pids.js';
 import { LaunchTimer, launchTarget, launchLabel } from './launch.js';
+import { makeControlMenu } from './dashmenu.js';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 const AUX_COUNT = 6;
+const AUX_COUNT_PHONE = 4;
 const AUX_PRIORITY = ['coolant', 'oilTemp', 'battery', 'fuel', 'boost', 'iat', 'throttle', 'timing', 'load', 'ecuVolt', 'stft1', 'ltft1'];
 
 const LAMPS = [
-  { id: 'cel', label: 'CHECK ENGINE', color: 'amber' },
-  { id: 'batt', label: 'BATT', key: 'battery', color: 'red' },
-  { id: 'temp', label: 'TEMP', key: 'coolant', color: 'red' },
-  { id: 'oil', label: 'OIL', key: 'oilTemp', color: 'red' },
-  { id: 'fuel', label: 'FUEL', key: 'fuel', color: 'amber' },
-  { id: 'gps', label: 'GPS', color: 'green' },
+  { id: 'cel', label: 'CHECK ENGINE', short: 'CEL', color: 'amber' },
+  { id: 'batt', label: 'BATT', short: 'BAT', key: 'battery', color: 'red' },
+  { id: 'temp', label: 'TEMP', short: 'TMP', key: 'coolant', color: 'red' },
+  { id: 'oil', label: 'OIL', short: 'OIL', key: 'oilTemp', color: 'red' },
+  { id: 'fuel', label: 'FUEL', short: 'FUEL', key: 'fuel', color: 'amber' },
+  { id: 'gps', label: 'GPS', short: 'GPS', color: 'green' },
 ];
 
 const CONTROLS = [
@@ -315,6 +317,7 @@ export class MuscleDash {
     this.root = root;
     this.ctx = ctx;
     this.built = false;
+    this.compact = false; // phone-sized layout
     this.aux = [];
     this.trip = 0;
     this.lastUpdate = null;
@@ -339,9 +342,18 @@ export class MuscleDash {
     return keys;
   }
 
+  /** Switch between the iPad layout and the phone layout. */
+  setCompact(compact) {
+    if (compact === this.compact) return;
+    this.compact = compact;
+    if (this.built) this.build();
+  }
+
   build() {
     installDefs();
     this.root.textContent = '';
+    this.root.classList.toggle('phone', this.compact);
+    this.menu?.destroy();
     this.root.style.setProperty('--carbon', `url(${carbonTile()})`);
 
     // Header: plaque, lamps, switches
@@ -356,7 +368,7 @@ export class MuscleDash {
     const lamps = el('div', 'mm-lamps');
     this.lamps = LAMPS.map((l) => {
       const wrap = el('span', `mm-lamp ${l.color}`);
-      wrap.append(el('i'), el('span', null, l.label));
+      wrap.append(el('i'), el('span', 'long', l.label), el('span', 'short', l.short));
       lamps.append(wrap);
       return { ...l, node: wrap, on: null };
     });
@@ -367,16 +379,20 @@ export class MuscleDash {
       b.type = 'button';
       b.append(el('i'), el('span', null, c.label));
       if (c.toggle) b.setAttribute('aria-pressed', 'false');
-      b.addEventListener('click', () => this.ctx.onAction(c.action));
+      b.addEventListener('click', () => {
+        this.ctx.onAction(c.action);
+        this.menu?.close();
+      });
       ctrls.append(b);
       this.ctrls[c.action] = b;
     }
     head.append(plaque, lamps, ctrls);
+    this.menu = makeControlMenu(head, ctrls, 'mm-btn mm-menu-btn');
 
     // Main: tach, center column, speedometer
     const main = el('div', 'mm-main');
-    this.tachWrap = el('div', 'mm-big');
-    this.speedoWrap = el('div', 'mm-big');
+    this.tachWrap = el('div', 'mm-big tach');
+    this.speedoWrap = el('div', 'mm-big speedo');
     const center = el('div', 'mm-center');
     this.shift = el('div', 'mm-shift');
     this.shift.append(el('span', null, 'SHIFT'));
@@ -432,8 +448,9 @@ export class MuscleDash {
     this.speedoWrap.replaceChildren(this.speedo.svg);
 
     // Aux: first AUX_COUNT supported values, padded with unsupported ones.
-    const supported = AUX_PRIORITY.filter((k) => ctx.has(k)).slice(0, AUX_COUNT);
-    const padding = AUX_PRIORITY.filter((k) => !supported.includes(k)).slice(0, AUX_COUNT - supported.length);
+    const count = this.compact ? AUX_COUNT_PHONE : AUX_COUNT;
+    const supported = AUX_PRIORITY.filter((k) => ctx.has(k)).slice(0, count);
+    const padding = AUX_PRIORITY.filter((k) => !supported.includes(k)).slice(0, count - supported.length);
     this.aux = [...supported, ...padding].map((key) => {
       const gauge = new Gauge(auxSpec(key, units));
       const isSupported = supported.includes(key);

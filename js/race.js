@@ -4,24 +4,27 @@
 
 import { SIGNAL_BY_KEY, unitLabel, toDisplay, formatValue, barGeometry } from './pids.js';
 import { LaunchTimer, launchTarget, launchLabel } from './launch.js';
+import { makeControlMenu } from './dashmenu.js';
 
 // Each zone shows the first `count` values this car supports, in priority order.
+// `phone` is the count for the phone-sized layout.
 const ZONES = [
-  { id: 'left', count: 3, keys: ['coolant', 'oilTemp', 'battery', 'iat', 'ambient', 'ecuVolt'] },
-  { id: 'right', count: 3, keys: ['boost', 'throttle', 'load', 'pedal', 'timing', 'maf'] },
+  { id: 'left', count: 3, phone: 2, keys: ['coolant', 'oilTemp', 'battery', 'iat', 'ambient', 'ecuVolt'] },
+  { id: 'right', count: 3, phone: 2, keys: ['boost', 'throttle', 'load', 'pedal', 'timing', 'maf'] },
   {
     id: 'bottom',
     count: 7,
+    phone: 2,
     keys: ['iat', 'fuel', 'economy', 'timing', 'stft1', 'ltft1', 'maf', 'load', 'throttle', 'catTemp', 'lambda', 'ambient', 'baro', 'runtime'],
   },
 ];
 
 const TELLTALES = [
-  { id: 'cel', label: 'CHECK ENGINE' },
-  { id: 'batt', label: 'BATT', key: 'battery' },
-  { id: 'temp', label: 'TEMP', key: 'coolant' },
-  { id: 'oil', label: 'OIL', key: 'oilTemp' },
-  { id: 'fuel', label: 'FUEL', key: 'fuel' },
+  { id: 'cel', label: 'CHECK ENGINE', short: 'CEL' },
+  { id: 'batt', label: 'BATT', short: 'BAT', key: 'battery' },
+  { id: 'temp', label: 'TEMP', short: 'TMP', key: 'coolant' },
+  { id: 'oil', label: 'OIL', short: 'OIL', key: 'oilTemp' },
+  { id: 'fuel', label: 'FUEL', short: 'FUEL', key: 'fuel' },
 ];
 
 const CONTROLS = [
@@ -60,6 +63,7 @@ export class RaceDash {
     this.root = root;
     this.ctx = ctx;
     this.built = false;
+    this.compact = false; // phone-sized layout
     this.cells = [];
     this.rpm = 0;
     this.speed = 0;
@@ -81,8 +85,17 @@ export class RaceDash {
     return keys;
   }
 
+  /** Switch between the iPad layout and the phone layout. */
+  setCompact(compact) {
+    if (compact === this.compact) return;
+    this.compact = compact;
+    if (this.built) this.build();
+  }
+
   build() {
     this.root.textContent = '';
+    this.root.classList.toggle('phone', this.compact);
+    this.menu?.destroy();
 
     // Header: brand, warning lights, controls
     const head = el('div', 'rd-head');
@@ -95,7 +108,8 @@ export class RaceDash {
     brand.append(this.statusEl);
     const tells = el('div', 'rd-tells');
     this.tells = TELLTALES.map((t) => {
-      const n = el('span', 'rd-tell', t.label);
+      const n = el('span', 'rd-tell');
+      n.append(el('span', 'long', t.label), el('span', 'short', t.short));
       tells.append(n);
       return { ...t, node: n, state: null };
     });
@@ -105,11 +119,15 @@ export class RaceDash {
       const b = el('button', 'rd-btn' + (c.cls ? ' ' + c.cls : ''), c.label);
       b.type = 'button';
       if (c.toggle) b.setAttribute('aria-pressed', 'false');
-      b.addEventListener('click', () => this.ctx.onAction(c.action));
+      b.addEventListener('click', () => {
+        this.ctx.onAction(c.action);
+        this.menu?.close();
+      });
       ctrls.append(b);
       this.ctrls[c.action] = b;
     }
     head.append(brand, tells, ctrls);
+    this.menu = makeControlMenu(head, ctrls, 'rd-btn rd-menu-btn');
 
     // Shift lights
     const leds = el('div', 'rd-leds');
@@ -198,10 +216,11 @@ export class RaceDash {
     const used = new Set();
     const picks = {};
     for (const z of ZONES) {
-      const supported = z.keys.filter((k) => has(k) && !used.has(k)).slice(0, z.count);
+      const count = this.compact ? z.phone : z.count;
+      const supported = z.keys.filter((k) => has(k) && !used.has(k)).slice(0, count);
       supported.forEach((k) => used.add(k));
       // Pad with unsupported candidates so the layout stays full (shown as N/A).
-      const pad = z.keys.filter((k) => !used.has(k) && !supported.includes(k)).slice(0, z.count - supported.length);
+      const pad = z.keys.filter((k) => !used.has(k) && !supported.includes(k)).slice(0, count - supported.length);
       pad.forEach((k) => used.add(k));
       picks[z.id] = [...supported, ...pad];
     }
