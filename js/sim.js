@@ -14,7 +14,7 @@ const word = (v) => {
 const pctByte = (v) => clamp(Math.round((v * 255) / 100), 0, 255);
 const trimByte = (v) => clamp(Math.round((v * 128) / 100 + 128), 0, 255);
 
-const SUPPORTED = [0x01, 0x04, 0x05, 0x06, 0x07, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x1f, 0x21, 0x2f, 0x31, 0x33, 0x42, 0x46, 0x49, 0x5c];
+const SUPPORTED = [0x01, 0x04, 0x05, 0x06, 0x07, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x1f, 0x21, 0x2f, 0x31, 0x33, 0x42, 0x46, 0x49, 0x5c, 0xa4];
 const VIN = 'DEMO0BD2SIM000001';
 
 const dtcBytes = (code) => {
@@ -118,7 +118,13 @@ export class SimTransport {
       [110, 24],
     ];
     let ratio = gears[0][1];
-    for (const [minSpeed, r] of gears) if (c.speed >= minSpeed * shiftScale) ratio = r;
+    c.gear = 1;
+    gears.forEach(([minSpeed, r], i) => {
+      if (c.speed >= minSpeed * shiftScale) {
+        ratio = r;
+        c.gear = i + 1;
+      }
+    });
     const targetRpm = c.speed < 4 ? 780 + c.throttle * 22 : Math.max(950, c.speed * ratio);
     c.rpm += (targetRpm - c.rpm) * Math.min(1, dt * 6);
 
@@ -165,6 +171,7 @@ export class SimTransport {
       case 0x46: return [22 + 40];
       case 0x49: return [pctByte(c.throttle)];
       case 0x5c: return [Math.round(c.oil) + 40];
+      case 0xa4: return [0x02, (c.gear ?? 1) << 4, 0x00, 0x00]; // transmission actual gear
       default: return null;
     }
   }
@@ -254,7 +261,7 @@ export class SimTransport {
         if (pid === undefined) return reply(['?']);
         if (pid % 0x20 === 0) {
           const mask = this._supportedMask(pid);
-          if (pid > 0 && !SUPPORTED.some((p) => p > pid && p <= pid + 0x20)) return noData;
+          if (pid > 0 && !SUPPORTED.some((p) => p > pid)) return noData;
           return reply([this._fmt([0x41, pid, ...mask])]);
         }
         const data = this._pid(pid);

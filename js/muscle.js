@@ -20,6 +20,7 @@ const LAMPS = [
 ];
 
 const CONTROLS = [
+  { action: 'gear', label: 'GEAR', toggle: true },
   { action: 'gps', label: 'GPS', toggle: true },
   { action: 'record', label: 'REC', toggle: true },
   { action: 'peaks', label: 'RESET' },
@@ -559,6 +560,8 @@ export class MuscleDash {
 
     if (this.launch.running) this.launchDigits.textContent = this.launch.elapsed(now).toFixed(2).padStart(5, '0');
 
+    const shown = ctx.gearShown();
+    if (shown !== this.drawn.gearShown) this.gearEl.hidden = !(this.drawn.gearShown = shown);
     const gear = ctx.gear();
     const gearText = gear ?? '–';
     if (gearText !== this.drawn.gear) {
@@ -567,8 +570,10 @@ export class MuscleDash {
     }
   }
 
-  setControls({ gps, recording, recText, focus }) {
+  setControls({ gps, recording, recText, focus, gear, gearUnavailable }) {
     if (!this.built) return;
+    this.ctrls.gear.setAttribute('aria-pressed', String(!!gear));
+    this.ctrls.gear.classList.toggle('unavailable', !!gearUnavailable);
     this.ctrls.gps.setAttribute('aria-pressed', String(!!gps));
     this.ctrls.record.setAttribute('aria-pressed', String(!!recording));
     this.ctrls.record.querySelector('span').textContent = recording ? recText || 'STOP' : 'REC';

@@ -25,6 +25,7 @@ const TELLTALES = [
 ];
 
 const CONTROLS = [
+  { action: 'gear', label: 'GEAR', toggle: true },
   { action: 'gps', label: 'GPS', toggle: true },
   { action: 'record', label: 'REC', toggle: true, cls: 'rec' },
   { action: 'peaks', label: 'RESET PEAKS' },
@@ -135,10 +136,10 @@ export class RaceDash {
     this.rpmLine = el('div', 'rd-rpmline');
     this.rpmNum = el('span', null, '----');
     this.rpmLine.append(this.rpmNum, el('small', null, 'RPM'));
-    const gearBox = el('div', 'rd-gear');
+    this.gearBox = el('div', 'rd-gear');
     this.gearNum = el('b', null, '–');
-    gearBox.append(el('span', null, 'GEAR'), this.gearNum);
-    center.append(gearBox, this.speedEl, this.speedUnitEl, this.rpmLine);
+    this.gearBox.append(el('span', null, 'GEAR'), this.gearNum);
+    center.append(this.gearBox, this.speedEl, this.speedUnitEl, this.rpmLine);
     main.append(this.cols.left, center, this.cols.right);
 
     // Bottom strip
@@ -357,12 +358,16 @@ export class RaceDash {
     // Live 0–60 clock while a launch is running
     if (this.launch.running) this.special.launch.value.textContent = this.launch.elapsed(performance.now()).toFixed(1);
 
+    const shown = ctx.gearShown();
+    if (shown !== this.drawn.gearShown) this.gearBox.hidden = !(this.drawn.gearShown = shown);
     const gear = ctx.gear() ?? '–';
     if (gear !== this.drawn.gear) this.gearNum.textContent = this.drawn.gear = gear;
   }
 
-  setControls({ gps, recording, recText, focus }) {
+  setControls({ gps, recording, recText, focus, gear, gearUnavailable }) {
     if (!this.built) return;
+    this.ctrls.gear.setAttribute('aria-pressed', String(!!gear));
+    this.ctrls.gear.classList.toggle('unavailable', !!gearUnavailable);
     this.ctrls.gps.setAttribute('aria-pressed', String(!!gps));
     this.ctrls.record.setAttribute('aria-pressed', String(!!recording));
     this.ctrls.record.textContent = recording ? recText || 'STOP' : 'REC';
